@@ -1,0 +1,224 @@
+﻿@model BeerCraft.ViewModels.RecipeViewModel
+
+
+<div class="createRecipe">
+    <h2>Create A New Concoction</h2>
+    <table id="">
+        <tr>
+            <td>
+                <p>Recipe Title:</p>
+            </td>
+            <td>
+                <input id="newRecipeName" type="text" />
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <p>Recipe Description:</p>
+            </td>
+            <td>
+                <input id="newRecipeDesc" type="text" />
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <p>Instructions:</p>
+            </td>
+            <td></td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <textarea id="newInstructions" rows="6" cols="60" placeholder="Tell us how to make this beer..."></textarea>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <select id="newIngredientSelect">
+                    <option value=""></option>
+                    @for (int i = 0; i < Model.Ingredients.Count; i++)
+                    {
+                        <option value="@Model.Ingredients[i].Name" data-ingredientid="@Model.Ingredients[i].IngredientID">@Model.Ingredients[i].Name</option>
+                    }
+                </select>
+            </td>
+            <td>
+                <button id="addNewIngredient" onclick="addIngredientToRecipe()">Add Ingredient</button>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <p>
+                    Ingredients List:
+                </p>
+            </td>
+            <td></td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <table id="newIngredientsList">
+
+                </table>
+            </td>
+        </tr>
+        <tr>
+            <td></td>
+            <td>
+                <button id="createRecipeButton" onclick="saveRecipe()">Create Masterpiece</button>
+            </td>
+        </tr>
+    </table>
+</div>
+<div class="searchRecipes">
+    <h2>Search Past Creations</h2>
+    <table id="searchRecipesTable">
+        <tr>
+            <td>
+                <p>Enter recipe name</p>
+            </td><td></td>
+        </tr>
+        <tr>
+            <td>
+                <input id="recipeSearchInput" type="text" />
+            </td>
+            <td>
+                <button id="recipeSearchButton" onclick="searchRecipes()">Search</button>
+            </td>
+        </tr>
+    </table>
+    <div id="searchedRecipeHolder">
+        <h3>Description:</h3>
+        <p id="searchedDescription"></p>
+        <h3>Instructions:</h3>
+        <p id="searchedInstructions"></p>
+        <h3>Ingredients:</h3>
+        <table id="searchedIngredients"></table>
+    </div>
+</div>
+
+<script>
+    var saveRecipeURL = '@Url.Action("SaveRecipe", "Home")';
+    var searchRecipeURL = '@Url.Action("SearchRecipes", "Home")';
+
+    function addIngredientToRecipe() {
+        //Get which option was selected
+        var selectedOption = $('#newIngredientSelect option:selected');
+        var selectedText = $(selectedOption).text();
+        var selectedDataId = $(selectedOption).data('ingredientid');
+        //Only do something if there is a value of substance
+        if (selectedText != '') {
+            //Add the text to the new ingredients list
+            var html = '<tr><td><p data-ingredientid="' + selectedDataId + '"> ' + selectedText + '</p></td></tr> ';
+            $('#newIngredientsList').append(html);
+        }
+    }
+
+    function saveRecipe() {
+        var data = {};
+        //Get all the data to create a new recipe
+        var name = $('#newRecipeName').val();
+        var desc = $('#newRecipeDesc').val();
+        var inst = $('#newInstructions').val();
+        var ingredients = [];
+        $('#newIngredientsList td p').each(function () {
+            //Get the ingredients list
+            var id = $(this).data('ingredientid');
+            ingredients.push(id);
+        });
+        //Validate all the data
+        var errorMsg = '';
+        if (name == '') 
+            errorMsg += 'The Title cannot be left blank.\r\n';
+        if (desc == '') 
+            errorMsg += 'A description is required.\r\n';     
+        if (inst == '') 
+            errorMsg += 'Some instructions would be helpful.\r\n';
+        if (ingredients.length == 0)
+            errorMsg += 'Without any ingredients it is not much of a recipe.';
+
+        if (errorMsg != '') {
+            alert(errorMsg);
+        } else {
+            //Put the data in the data object
+            data.Name = name;
+            data.Description = desc;
+            data.Instructions = inst;
+            data.ingredients = ingredients;
+            //Send the data
+            $.ajax({
+                url: saveRecipeURL,
+                type: 'POST',
+                datatype: 'JSON',
+                data: data,
+                success: function (ret) {
+                    if (ret.success == 1) {
+                        alert(ret.message);
+                    } else {
+                        alert('Error: ' + ret.message);
+                    }
+                },
+                error: function (x, e) {
+                    if (x.status == 0) {
+                        alert('You are offline!!\n Please Check Your Network.');
+                    } else if (x.status == 404) {
+                        alert('Requested URL not found.');
+                    } else if (x.status == 500) {
+                        alert('Internel Server Error.');
+                    } else if (e == 'parsererror') {
+                        alert('Error.\nParsing JSON Request failed.');
+                    } else if (e == 'timeout') {
+                        alert('Request Time out.');
+                    } else {
+                        alert('Unknow Error.\n' + x.responseText);
+                    } ert('error, does not compute');
+                }
+            });
+        }
+    }
+
+    function searchRecipes() {
+        //Empty the searched values in case they previously had something in them
+        $('#searchedDescription').empty();
+        $('#searchedInstructions').empty();
+        $('#searchedIngredients tr').remove();
+        var data = {};
+        data.Name = $('#recipeSearchInput').val();
+        $.ajax({
+            url: searchRecipeURL,
+            type: 'POST',
+            datatype: 'JSON',
+            data: data,
+            success: function (ret) {
+                if (ret.success == 1) {
+                    //Got the recipe, populate the view with it
+                    $('#searchedDescription').text(ret.recipe.Description);
+                    $('#searchedInstructions').text(ret.recipe.Instructions);
+                    //Add the HTML for the table
+                    var tableHtml = '';
+                    for (var i = 0; i < ret.ingredients.length; i++) {
+                        tableHtml += '<tr><td><p>';
+                        tableHtml += ret.ingredients[i];
+                        tableHtml += '</td></tr>'
+                    }
+                    $('#searchedIngredients').html(tableHtml);
+                } else {
+                    alert(ret.message);
+                }
+            },
+            error: function (x, e) {
+                if (x.status == 0) {
+                    alert('You are offline!!\n Please Check Your Network.');
+                } else if (x.status == 404) {
+                    alert('Requested URL not found.');
+                } else if (x.status == 500) {
+                    alert('Internel Server Error.');
+                } else if (e == 'parsererror') {
+                    alert('Error.\nParsing JSON Request failed.');
+                } else if (e == 'timeout') {
+                    alert('Request Time out.');
+                } else {
+                    alert('Unknow Error.\n' + x.responseText);
+                }ert('error, does not compute');
+            }
+        });
+    }
+</script>
